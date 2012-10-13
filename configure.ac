@@ -10,7 +10,10 @@ dnl WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 dnl License for the specific language governing permissions and limitations
 dnl under the License.
 
-AC_INIT([LOCAL_PACKAGE_NAME], [LOCAL_VERSION], [LOCAL_BUG_URI],
+AC_INIT(
+    [LOCAL_PACKAGE_NAME],
+    [LOCAL_VERSION],
+    [LOCAL_BUG_URI],
     [LOCAL_PACKAGE_TARNAME])
 
 AC_PREREQ([2.59])
@@ -324,7 +327,6 @@ AC_SUBST(JS_LIBS)
 LIBS="$OLD_LIBS"
 CPPFLAGS="$OLD_CPPFLAGS"
 
-
 AC_ARG_WITH([win32-icu-binaries], [AC_HELP_STRING([--with-win32-icu-binaries=PATH],
     [set PATH to the Win32 native ICU binaries directory])], [
     ICU_CPPFLAGS="-I$withval/include"
@@ -372,7 +374,6 @@ case "$(uname -s)" in
     LIBS="$LIBS -lcrypto"
   ;;
 esac
-
 
 erlang_version_error="The installed Erlang version is less than 5.6.5 (R12B05)."
 
@@ -494,6 +495,15 @@ else
     fi
 fi
 
+# Secret environment variable to skip tests while working on the build system
+if test -n "$SKIP_TESTS"; then
+    run_tests=no
+else
+    run_tests=yes
+fi
+
+AM_CONDITIONAL([RUN_TESTS], [test x${run_tests} = xyes])
+
 AM_CONDITIONAL([INIT], [test x${init_enabled} = xtrue])
 AM_CONDITIONAL([LAUNCHD], [test x${launchd_enabled} = xtrue])
 AM_CONDITIONAL([HELP2MAN], [test x${help2man_enabled} = xtrue])
@@ -556,6 +566,8 @@ AC_CONFIG_FILES([etc/logrotate.d/Makefile])
 AC_CONFIG_FILES([etc/windows/Makefile])
 AC_CONFIG_FILES([etc/Makefile])
 AC_CONFIG_FILES([share/Makefile])
+AC_CONFIG_FILES([share/doc/Makefile])
+AC_CONFIG_FILES([share/doc/build/Makefile])
 AC_CONFIG_FILES([src/Makefile])
 AC_CONFIG_FILES([src/couch_index/Makefile])
 AC_CONFIG_FILES([src/couch_mrview/Makefile])

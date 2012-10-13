@@ -82,11 +82,11 @@ README.gz: $(top_srcdir)/README
 THANKS.gz: $(top_srcdir)/THANKS
 	@sed -e '/^#.*/d' $< > $(top_builddir)/THANKS.tmp
 	@git shortlog -se 6c976bd..HEAD \
-		| grep -v @apache.org \
-		| sed -E 's/^[[:blank:]]{5}[[:digit:]]+[[:blank:]]/ * /' \
-		>> $(top_builddir)/THANKS.tmp
+	    | grep -v @apache.org \
+	    | sed -E 's/^[[:blank:]]{5}[[:digit:]]+[[:blank:]]/ * /' \
+	    >> $(top_builddir)/THANKS.tmp
 	@echo '\nFor a list of authors see the `AUTHORS` file.\n' \
-		>> $(top_builddir)/THANKS.tmp
+	    >> $(top_builddir)/THANKS.tmp
 	-gzip -9 < $(top_builddir)/THANKS.tmp > $@
 	@rm $(top_builddir)/THANKS.tmp
 
@@ -113,12 +113,13 @@ if RUN_TESTS
 	COVER=1 COVER_BIN=./src/couchdb/ $(top_builddir)/test/etap/run
 	SRC=./src/couchdb/ \
 	    $(ERL) -noshell \
-		-pa src/etap \
-		-eval 'etap_report:create()' \
+	    -pa src/etap \
+	    -eval 'etap_report:create()' \
 	    -s init stop > /dev/null 2>&1
 endif
 
 dev: all
+if RUN_TESTS
 	@echo "This command is intended for developers to use;"
 	@echo "it creates development ini files as well as a"
 	@echo "$(top_builddir)/tmp structure for development runtime files."
@@ -128,6 +129,7 @@ dev: all
 	mkdir -p $(top_builddir)/tmp/lib
 	mkdir -p $(top_builddir)/tmp/log
 	mkdir -p $(top_builddir)/tmp/run/couchdb
+endif
 
 install-data-hook:
 	@echo
