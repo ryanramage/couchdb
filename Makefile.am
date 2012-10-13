@@ -91,17 +91,24 @@ THANKS.gz: $(top_srcdir)/THANKS
 	@rm $(top_builddir)/THANKS.tmp
 
 check: dev check-js
+if RUN_TESTS
 	$(top_builddir)/test/etap/run $(top_srcdir)/test/etap
+endif
 
 check-js: dev
+if RUN_TESTS
 if USE_CURL
 	$(top_builddir)/test/javascript/run
 endif
+endif
 
 check-etap: dev
+if RUN_TESTS
 	$(top_builddir)/test/etap/run $(top_srcdir)/test/etap
+endif
 
 cover: dev
+if RUN_TESTS
 	rm -f cover/*.coverdata
 	COVER=1 COVER_BIN=./src/couchdb/ $(top_builddir)/test/etap/run
 	SRC=./src/couchdb/ \
@@ -109,6 +116,7 @@ cover: dev
 		-pa src/etap \
 		-eval 'etap_report:create()' \
 	    -s init stop > /dev/null 2>&1
+endif
 
 dev: all
 	@echo "This command is intended for developers to use;"
