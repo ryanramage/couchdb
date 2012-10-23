@@ -59,7 +59,13 @@ replication_id(#rep{options = Options} = Rep) ->
 % If a change is made to how replications are identified,
 % please add a new clause and increase ?REP_ID_VERSION.
 
-replication_id(#rep{user_ctx = UserCtx} = Rep, 2) ->
+replication_id(#rep{user_ctx = UserCtx} = Rep, 3 = RepIdVsn) ->
+    UUID = couch_server:get_uuid(),
+    Src = get_rep_endpoint(UserCtx, Rep#rep.source, RepIdVsn),
+    Tgt = get_rep_endpoint(UserCtx, Rep#rep.target, RepIdVsn),
+    maybe_append_filters([UUID, Src, Tgt], Rep);
+
+replication_id(#rep{user_ctx = UserCtx} = Rep, 2 = RepIdVsn) ->
     {ok, HostName} = inet:gethostname(),
     Port = case (catch mochiweb_socket_server:get(couch_httpd, port)) of
     P when is_number(P) ->
@@ -72,14 +78,14 @@ replication_id(#rep{user_ctx = UserCtx} = Rep, 2) ->
         % ... mochiweb_socket_server:get(https, port)
         list_to_integer(couch_config:get("httpd", "port", "5984"))
     end,
-    Src = get_rep_endpoint(UserCtx, Rep#rep.source),
-    Tgt = get_rep_endpoint(UserCtx, Rep#rep.target),
+    Src = get_rep_endpoint(UserCtx, Rep#rep.source, RepIdVsn),
+    Tgt = get_rep_endpoint(UserCtx, Rep#rep.target, RepIdVsn),
     maybe_append_filters([HostName, Port, Src, Tgt], Rep);
 
-replication_id(#rep{user_ctx = UserCtx} = Rep, 1) ->
+replication_id(#rep{user_ctx = UserCtx} = Rep, 1 = RepIdVsn) ->
     {ok, HostName} = inet:gethostname(),
-    Src = get_rep_endpoint(UserCtx, Rep#rep.source),
-    Tgt = get_rep_endpoint(UserCtx, Rep#rep.target),
+    Src = get_rep_endpoint(UserCtx, Rep#rep.source, RepIdVsn),
+    Tgt = get_rep_endpoint(UserCtx, Rep#rep.target, RepIdVsn),
     maybe_append_filters([HostName, Src, Tgt], Rep).
 
 
@@ -149,17 +155,44 @@ maybe_append_options(Options, RepOptions) ->
     end, [], Options).
 
 
-get_rep_endpoint(_UserCtx, #httpdb{url=Url, headers=Headers, oauth=OAuth}) ->
+get_rep_endpoint(_UserCtx, #httpdb{headers=Headers, oauth=OAuth}=Httpdb, RepIdVsn) ->
     DefaultHeaders = (#httpdb{})#httpdb.headers,
     case OAuth of
     nil ->
-        {remote, Url, Headers -- DefaultHeaders};
+        {remote, maybe_stabilize_url(Httpdb, RepIdVsn), Headers -- DefaultHeaders};
     #oauth{} ->
-        {remote, Url, Headers -- DefaultHeaders, OAuth}
+        {remote, maybe_stabilize_url(Httpdb, RepIdVsn), Headers -- DefaultHeaders, OAuth}
     end;
-get_rep_endpoint(UserCtx, <<DbName/binary>>) ->
+get_rep_endpoint(UserCtx, <<DbName/binary>>, _Version) ->
     {local, DbName, UserCtx}.
 
+maybe_stabilize_url(#httpdb{url=Url}, 3) ->
+    MinPort = list_to_integer(couch_config:get("replicator", "min_dynamic_port", "49152")),
+    MaxPort = list_to_integer(couch_config:get("replicator", "max_dynamic_port", "65535")),
+    {ok, {Scheme, UserInfo, Host, Port, Path, _}} = http_uri:parse(Url),
+    case Port >= MinPort andalso Port =< MaxPort of
+        true ->
+            BaseUrl = base_url(Scheme, UserInfo, Host, Port),
+            {ok, "200", _, Body} = ibrowse:send_req(BaseUrl, [], get),
+            {Props} = ?JSON_DECODE(Body),
+            case couch_util:get_value(<<"uuid">>, Props, nil) of
+                nil -> Url;
+                UUID -> {Scheme, UserInfo, UUID, Path}
+            end;
+        false ->
+            Url
+    end;
+maybe_stabilize_url(#httpdb{url=Url}, _RepIdVsn) ->
+    Url;
+maybe_stabilize_url(DbName, _RepIdVsn) when is_binary(DbName) ->
+    DbName.
+
+base_url(Scheme, UserInfo, Host, Port) ->
+    lists:flatten(
+      case UserInfo of
+          [] -> io_lib:format("~p://~s:~B/", [Scheme, Host, Port]);
+          _  -> io_lib:format("~p://~s@~s:~B/", [Scheme, UserInfo, Host, Port])
+      end).
 
 parse_rep_db({Props}, ProxyParams, Options) ->
     Url = maybe_add_trailing_slash(get_value(<<"url">>, Props)),
